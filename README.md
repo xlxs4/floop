@@ -1,2 +1,2 @@
 # floop
-A minimal lisp implemented in C
+A minimal lisp-like language implemented in C
