@@ -22,6 +22,15 @@ void add_history(char* unused) {}
 
 /* Forward declarations */
 
+mpc_parser_t* Number;
+mpc_parser_t* Symbol;
+mpc_parser_t* String;
+mpc_parser_t* Comment;
+mpc_parser_t* Sexpr;
+mpc_parser_t* Qexpr;
+mpc_parser_t* Expr;
+mpc_parser_t* Floop;
+
 struct lval;
 struct lenv;
 typedef struct lval lval;
@@ -628,6 +637,60 @@ lval* builtin_put(lenv* e, lval* a) {
     return builtin_var(e, a, "=");
 }
 
+lval* lval_read(mpc_ast_t* t);
+
+lval* builtin_load(lenv* e, lval* a) {
+    LASSERT_NUM("load", a, 1);
+    LASSERT_TYPE("load", a, 0, LVAL_STR);
+
+    mpc_result_t r;
+    if (mpc_parse_contents(a->cell[0]->str, Floop, &r)) {
+        lval* expr = lval_read(r.output);
+        mpc_ast_delete(r.output);
+
+        while (expr->count) {
+            lval* x = lval_eval(e, lval_pop(expr, 0));
+            if (x->type == LVAL_ERR) { lval_println(x); }
+            lval_del(x);
+        }
+
+        lval_del(expr);
+        lval_del(a);
+
+        return lval_sexpr();
+    } else {
+        char* err_msg = mpc_err_string(r.error);
+        mpc_err_delete(r.error);
+
+        lval* err = lval_err("Could not load file %s", err_msg);
+        free(err_msg);
+        lval_del(a);
+
+        return err;
+    }
+}
+
+lval* builtin_print(lenv* e, lval* a) {
+    for (int i = 0; i < a->count; i++) {
+        lval_print(a->cell[i]); putchar(' ');
+    }
+
+    putchar('\n');
+    lval_del(a);
+
+    return lval_sexpr();
+}
+
+lval* builtin_error(lenv* e, lval* a) {
+    LASSERT_NUM("error", a, 1);
+    LASSERT_TYPE("error", a, 0, LVAL_STR);
+
+    lval* err = lval_err(a->cell[0]->str);
+
+    lval_del(a);
+    return err;
+}
+
 void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
     lval* k = lval_sym(name);
     lval* v = lval_builtin(func);
@@ -658,6 +721,10 @@ void lenv_add_builtins(lenv* e) {
     lenv_add_builtin(e, "<", builtin_lt);
     lenv_add_builtin(e, ">=", builtin_ge);
     lenv_add_builtin(e, "<=", builtin_le);
+
+    lenv_add_builtin(e, "load", builtin_load);
+    lenv_add_builtin(e, "error", builtin_error);
+    lenv_add_builtin(e, "print", builtin_print);
 }
 
 lval* lval_call(lenv* e, lval* f, lval* a) {
@@ -792,6 +859,7 @@ lval* lval_read(mpc_ast_t* t) {
         if (strcmp(t->children[i]->contents, ")") == 0) { continue; }
         if (strcmp(t->children[i]->contents, "}") == 0) { continue; }
         if (strcmp(t->children[i]->contents, "{") == 0) { continue; }
+        if (strstr(t->children[i]->tag, "comment")) { continue; }
         if (strcmp(t->children[i]->tag, "regex") == 0) { continue ; }
         x = lval_add(x, lval_read(t->children[i]));
     }
@@ -803,63 +871,79 @@ lval* lval_read(mpc_ast_t* t) {
 /* Main */
 
 int main(int argc, char** argv) {
-    mpc_parser_t* Number   = mpc_new("number");
-    mpc_parser_t* Symbol   = mpc_new("symbol");
-    mpc_parser_t* String   = mpc_new("string");
-    mpc_parser_t* Sexpr    = mpc_new("sexpr");
-    mpc_parser_t* Qexpr    = mpc_new("qexpr");
-    mpc_parser_t* Expr     = mpc_new("expr");
-    mpc_parser_t* Floop    = mpc_new("floop");
+    mpc_parser_t* Number  = mpc_new("number");
+    mpc_parser_t* Symbol  = mpc_new("symbol");
+    mpc_parser_t* String  = mpc_new("string");
+    mpc_parser_t* Comment = mpc_new("comment");
+    mpc_parser_t* Sexpr   = mpc_new("sexpr");
+    mpc_parser_t* Qexpr   = mpc_new("qexpr");
+    mpc_parser_t* Expr    = mpc_new("expr");
+    mpc_parser_t* Floop   = mpc_new("floop");
 
     mpca_lang(MPCA_LANG_DEFAULT,
-    "                                                      \
-    number : /-?[0-9]+/ ;                                  \
-    symbol : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;            \
-    string : /\"(\\\\.|[^\"])*\"/ ;                        \
-    sexpr  : '(' <expr>* ')' ;                             \
-    qexpr  : '{' <expr>* '}' ;                             \
-    expr   : <number> | <symbol> | <string>                \
-             | <sexpr> | <qexpr> ;                         \
-    floop  : /^/ <expr>* /$/ ;                             \
-    ", Number, Symbol, String, Sexpr, Qexpr, Expr, Floop);
-
-    puts("\n");
-    puts("     ▄████████  ▄█        ▄██████▄   ▄██████▄     ▄███████▄ ");
-    puts("   ███    ███ ███       ███    ███ ███    ███   ███    ███  ");
-    puts("   ███    █▀  ███       ███    ███ ███    ███   ███    ███  ");
-    puts("  ▄███▄▄▄     ███       ███    ███ ███    ███   ███    ███  ");
-    puts(" ▀▀███▀▀▀     ███       ███    ███ ███    ███ ▀█████████▀   ");
-    puts("   ███        ███       ███    ███ ███    ███   ███         ");
-    puts("   ███        ███▌    ▄ ███    ███ ███    ███   ███         ");
-    puts("   ███        █████▄▄██  ▀██████▀   ▀██████▀   ▄████▀       ");
-    puts("              ▀                                           \n");
-
-    puts("Press Ctrl+c to exit\n");
+    "                                                       \
+    number  : /-?[0-9]+/ ;                                  \
+    symbol  : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;            \
+    string  : /\"(\\\\.|[^\"])*\"/ ;                        \
+    comment : /;[^\\r\\n]*/ ;                               \
+    sexpr   : '(' <expr>* ')' ;                             \
+    qexpr   : '{' <expr>* '}' ;                             \
+    expr    : <number>  | <symbol> | <string>               \
+            | <comment> | <sexpr>  | <qexpr> ;              \
+    floop   : /^/ <expr>* /$/ ;                             \
+    ", Number, Symbol, String, Comment, Sexpr, Qexpr, Expr, Floop);
 
     lenv* e = lenv_new();
     lenv_add_builtins(e);
 
-    while (1) {
-        char* input = readline("floop> ");
-        add_history(input);
+    if (argc == 1) {
+        puts("\n");
+        puts("     ▄████████  ▄█        ▄██████▄   ▄██████▄     ▄███████▄ ");
+        puts("   ███    ███ ███       ███    ███ ███    ███   ███    ███  ");
+        puts("   ███    █▀  ███       ███    ███ ███    ███   ███    ███  ");
+        puts("  ▄███▄▄▄     ███       ███    ███ ███    ███   ███    ███  ");
+        puts(" ▀▀███▀▀▀     ███       ███    ███ ███    ███ ▀█████████▀   ");
+        puts("   ███        ███       ███    ███ ███    ███   ███         ");
+        puts("   ███        ███▌    ▄ ███    ███ ███    ███   ███         ");
+        puts("   ███        █████▄▄██  ▀██████▀   ▀██████▀   ▄████▀       ");
+        puts("              ▀                                           \n");
 
-        mpc_result_t r;
-        if (mpc_parse("<stdin>", input, Floop, &r)) {
-            lval* x = lval_eval(e, lval_read(r.output));
-            lval_println(x);
-            lval_del(x);
+        puts("Press Ctrl+c to exit\n");
 
-            mpc_ast_delete(r.output);
-        } else {
-            mpc_err_print(r.error);
-            mpc_err_delete(r.error);
+        while (1) {
+            char* input = readline("floop> ");
+            add_history(input);
+
+            mpc_result_t r;
+            if (mpc_parse("<stdin>", input, Floop, &r)) {
+                lval* x = lval_eval(e, lval_read(r.output));
+                lval_println(x);
+                lval_del(x);
+
+                mpc_ast_delete(r.output);
+            } else {
+                mpc_err_print(r.error);
+                mpc_err_delete(r.error);
+            }
+
+            free(input);
         }
+    }
 
-        free(input);
+    if (argc >= 2) {
+        for (int i = 1; i < argc; i++) {
+            lval* args = lval_add(lval_sexpr(), lval_str(argv[i]));
+            lval* x = builtin_load(e, args);
+
+            if (x->type == LVAL_ERR) { lval_println(x); }
+            lval_del(x);
+        }
     }
 
     lenv_del(e);
 
-    mpc_cleanup(7, Number, Symbol, String, Sexpr, Qexpr, Expr, Floop);
+    mpc_cleanup(8,
+                Number, Symbol, String, Comment,
+                Sexpr, Qexpr, Expr, Floop);
     return 0;
 }
