@@ -243,7 +243,7 @@ void lval_print_str(lval* v) {
     char* escaped = malloc(strlen(v->str)+1);
     strcpy(escaped, v->str);
 
-    escaped=mpcf_escape(escaped);
+    escaped = mpcf_escape(escaped);
     printf("\"%s\"", escaped);
     free(escaped);
 }
@@ -498,7 +498,7 @@ lval* builtin_op(lenv* e, lval* a, char* op) {
 }
 
 lval* builtin_add(lenv* e, lval* a) { return builtin_op(e, a, "+"); }
-lval* builtin_sub(lenv* e, lval *a) { return builtin_op(e, a, "-"); }
+lval* builtin_sub(lenv* e, lval* a) { return builtin_op(e, a, "-"); }
 lval* builtin_mul(lenv* e, lval* a) { return builtin_op(e, a, "*"); }
 lval* builtin_div(lenv* e, lval* a) { return builtin_op(e, a, "/"); }
 
@@ -797,7 +797,7 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
     }
 
     if (v->count == 0) { return v; }
-    if (v->count == 1) { return lval_take(v, 0); }
+    if (v->count == 1) { return lval_eval(e, lval_take(v, 0)); }
 
     lval* f = lval_pop(v, 0);
     if (f->type != LVAL_FUN) {
@@ -806,7 +806,7 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
             "Got %s, expected %s.",
             ltype_name(f->type), ltype_name(LVAL_FUN));
 
-        lval_del(v); lval_del(f);
+        lval_del(f); lval_del(v);
         return err;
     }
 
@@ -871,14 +871,14 @@ lval* lval_read(mpc_ast_t* t) {
 /* Main */
 
 int main(int argc, char** argv) {
-    mpc_parser_t* Number  = mpc_new("number");
-    mpc_parser_t* Symbol  = mpc_new("symbol");
-    mpc_parser_t* String  = mpc_new("string");
-    mpc_parser_t* Comment = mpc_new("comment");
-    mpc_parser_t* Sexpr   = mpc_new("sexpr");
-    mpc_parser_t* Qexpr   = mpc_new("qexpr");
-    mpc_parser_t* Expr    = mpc_new("expr");
-    mpc_parser_t* Floop   = mpc_new("floop");
+    Number  = mpc_new("number");
+    Symbol  = mpc_new("symbol");
+    String  = mpc_new("string");
+    Comment = mpc_new("comment");
+    Sexpr   = mpc_new("sexpr");
+    Qexpr   = mpc_new("qexpr");
+    Expr    = mpc_new("expr");
+    Floop   = mpc_new("floop");
 
     mpca_lang(MPCA_LANG_DEFAULT,
     "                                                       \
