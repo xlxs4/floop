@@ -484,6 +484,8 @@ lval* builtin_op(lenv* e, lval* a, char* op) {
         if (strcmp(op, "+") == 0) { x->num += y->num; }
         if (strcmp(op, "-") == 0) { x->num -= y->num; }
         if (strcmp(op, "*") == 0) { x->num *= y->num; }
+        if (strcmp(op, "%") == 0) { x->num %= y->num; }
+        if (strcmp(op, "^") == 0) { x->num = pow(x->num, y->num); }
         if (strcmp(op, "/") == 0) {
             if (y->num == 0) {
                 lval_del(x); lval_del(y);
@@ -501,6 +503,8 @@ lval* builtin_add(lenv* e, lval* a) { return builtin_op(e, a, "+"); }
 lval* builtin_sub(lenv* e, lval* a) { return builtin_op(e, a, "-"); }
 lval* builtin_mul(lenv* e, lval* a) { return builtin_op(e, a, "*"); }
 lval* builtin_div(lenv* e, lval* a) { return builtin_op(e, a, "/"); }
+lval* builtin_mod(lenv* e, lval* a) { return builtin_op(e, a, "%"); }
+lval* builtin_exp(lenv* e, lval* a) { return builtin_op(e, a, "^"); }
 
 lval* builtin_ord(lenv* e, lval* a, char* op) {
     LASSERT_NUM(op, a, 2);
@@ -713,6 +717,8 @@ void lenv_add_builtins(lenv* e) {
     lenv_add_builtin(e, "-", builtin_sub);
     lenv_add_builtin(e, "*", builtin_mul);
     lenv_add_builtin(e, "/", builtin_div);
+    lenv_add_builtin(e, "%", builtin_mod);
+    lenv_add_builtin(e, "^", builtin_exp);
 
     lenv_add_builtin(e, "if", builtin_if);
     lenv_add_builtin(e, "==", builtin_eq);
@@ -883,7 +889,7 @@ int main(int argc, char** argv) {
     mpca_lang(MPCA_LANG_DEFAULT,
     "                                                       \
     number  : /-?[0-9]+/ ;                                  \
-    symbol  : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;            \
+    symbol  : /[a-zA-Z0-9_+\\-%\\^*\\/\\\\=<>!&]+/ ;        \
     string  : /\"(\\\\.|[^\"])*\"/ ;                        \
     comment : /;[^\\r\\n]*/ ;                               \
     sexpr   : '(' <expr>* ')' ;                             \
